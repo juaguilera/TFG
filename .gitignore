@@ -1,0 +1,6 @@
+code/python/data/
+code/python/.ipynb_checkpoints
+
+.RData
+.Rhistory
+SHA256SUMS.txt
