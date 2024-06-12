@@ -2,13 +2,16 @@ library(readr)
 library(arules)
 library(bnlearn)
 
-dataset_1_row_per_pacient <- read_csv("../../data/output/dataset_1_row_per_pacient_v2.csv")
+setwd('C:/Users/julia/Documents/MatCAD/MatCAD-4/TFG/Dades/mimic-iii-clinical-database-1.4/')
+dataset_1_row_per_pacient <- read_csv("./data/output/dataset_1_row_per_pacient_v2.csv")
 
 colnames(dataset_1_row_per_pacient)
 
-df <- as.data.frame(subset(../../data/output/dataset_1_row_per_pacient, select=-c(...1, subject_id, DRG_type, DRG_code)))
+df <- as.data.frame(subset(dataset_1_row_per_pacient, select=-c(...1, subject_id, DRG_type, DRG_code)))
 
 df <- df[complete.cases(df), ]
+
+df.original <- df
 
 # DICRETIZE VARIABLES
 
@@ -229,13 +232,14 @@ confusion.matrix.model1.lists <- list()
 xarxa1.predictions<-list()
 
 # Prova per obtenir la matriu de confusió per un output concret
-#validation.set <- df[xarxa1.finals[[1]]$test,all]
-#xarxa1.finals.grain<-as.grain(xarxa1.finals[[1]]$fitted)  # has de passar la xarxa de classe bn.fit
-# a format gRain, quen es un paquet, per a poder fer millor les prediccions
-#xarxa1.predictions <- predict(xarxa1.finals.grain, response="respiratory_services", 
-#validation.set, predictors=inputs, type='class')
+validation.set <- df[xarxa1.finals[[1]]$test,all]
+xarxa1.finals.grain<-as.grain(xarxa1.finals[[1]]$fitted)  # has de passar la xarxa de classe bn.fit
+                                                          # a format gRain, quen es un paquet, per 
+                                                          # a poder fer millor les prediccions
+xarxa1.predictions <- predict(xarxa1.finals.grain, response="respiratory_services", 
+validation.set, predictors=inputs, type='class')
 
-#confusionmatrix_output1 <- table(validation.set$respiratory_services, xarxa1.predictions$pred$respiratory_services)
+confusionmatrix_output1 <- table(validation.set$respiratory_services, xarxa1.predictions$pred$respiratory_services)
 
 ## Ara et prediu "0" i "1", pero abans, tal i com ho tenies, nomes et predeia "0" !!
 
@@ -246,36 +250,37 @@ for(fold in 1:numfolds){
   confusion.matrix.model1.lists[[fold]] <- list() # Creem una llista on guardarem les matrius de confusió
   xarxa1.predictions[[fold]]<-list() # idem per a les prediccions
   validation.set <- df[xarxa1.finals[[fold]]$test,all] # Agafem el set de validació utilitzat en aquest fold concret
-  # he tret les dues variables que, de moment, no fem servir posant "all"
+                                                       # he tret les dues variables que, de moment, no fem servir posant "all"
   
   for(output in 1:length(outputs)){
-    #print(output)
+
     xarxa1.predictions[[fold]][[output]]<-vector()
     outname <- outputs[[output]]
-    #print(outname)
-    
+
     # Fem la predicció amb els valors del bn.fit i el validation.set
     # S'ha de fer cas a cas, perque pot ser que algun cas no pugui predir
     # aixo si, ara triga mes, es clar... paciencia!!
-    
     for (i in 1:dim(validation.set)[1]) {   
-      if (is.null(
-        predict(as.grain(xarxa1.finals[[fold]]$fitted), response=outname, 
-                validation.set[i,], predictors=inputs, type='class')$pred[[1]])==TRUE){
-        xarxa1.predictions[[fold]][[output]][i]<-NA} else {
+      if (is.null(predict(as.grain(xarxa1.finals[[fold]]$fitted), response=outname, 
+                validation.set[i,], predictors=inputs, type='class')$pred[[1]])==TRUE)
+        {
+        xarxa1.predictions[[fold]][[output]][i]<-NA
+      } else {
           xarxa1.predictions[[fold]][[output]][i]<-predict(as.grain(xarxa1.finals[[1]]$fitted), response=outname, 
-                                                           validation.set[i,], predictors=inputs, type='class')$pred[[1]]}
+                                                           validation.set[i,], predictors=inputs, type='class')$pred[[1]]
+        }
     }
     
     # Generem la matriu de confusió
-    confusion.matrix <- table(validation.set[[outname]], xarxa1.predictions[[fold]][[output]])
+    categories_to_predict = unique(validation.set[[outname]])
+    
+    # Inicialitzem a 0s la matriu perquè no es prediuen totes les labels en totes les variables.
+    confusion.matrix <- matrix(0, nrow = length(categories_to_predict), ncol = length(categories_to_predict),
+                               dimnames = list(categories_to_predict, categories_to_predict))
+    
+    taula <- table(validation.set[[outname]], xarxa1.predictions[[fold]][[output]])
+    confusion.matrix[rownames(taula), colnames(taula)]<- taula
     #print(confusion.matrix)
-    # ALGUNES MATRIUS NO QUEDEN QUADRADES PERQUE NO PREDIU TOTES LES POSSIBLES CATEGORIES.
-    # LES HAS DE FER QUADRADES AFEGINT ELS 0 QUE CALQUI, EN FILES O COLUMNES, I QUE LES CATEGORIES
-    # ESTIGUIN BEN ORDENADES (I IGUAL) EN FILES I EN COLUMNES. 
-    # HO POTS FER AMB UNA FUNCIO: FA UNA MATRIU DE 0 AMB LES FILES I COLUMNES QUE CATEGORIES DE LA
-    # VARIABLE OUTPUT QUE TOQUI, I DESPRES LA VA OMPLINT AMB ELS VALORS QUE HAS TROBAT, A LA FILA/COLUMNA
-    # QUE CORRESPONGUI
     
     # Guardem la matriu de confusió de cada output
     confusion.matrix.model1.lists[[fold]][[output]] <- confusion.matrix
