@@ -3,7 +3,7 @@ library(arules)
 library(bnlearn)
 
 setwd('C:/Users/julia/Documents/MatCAD/MatCAD-4/TFG/Dades/mimic-iii-clinical-database-1.4/')
-dataset_1_row_per_pacient <- read_csv("./data/output/dataset_1_row_per_pacient_v2.csv")
+dataset_1_row_per_pacient <- read_csv("./data/output/dataset_1_row_per_pacient_v3.csv")
 
 colnames(dataset_1_row_per_pacient)
 
@@ -137,14 +137,14 @@ df$LOS_x <- df$LOS_x / 24 # Passem de hores a dies.
 summary(df$LOS_x)
 
 length(which(df$LOS_x<1))
-length(which(df$LOS_x<2 & df$LOS_x>=1))
-length(which(df$LOS_x<3 & df$LOS_x>=2))
-length(which(df$LOS_x<4 & df$LOS_x>=3))
+length(which(df$LOS_x<=2 & df$LOS_x>=1))
+length(which(df$LOS_x<=4 & df$LOS_x>2))
+#length(which(df$LOS_x<4 & df$LOS_x>=3))
 length(which(df$LOS_x>=4))
 
 
-df$LOS_x <-arules::discretize(df$LOS_x, method="fixed", breaks=c(0,1,2,3,4,Inf), 
-                              labels=c("0-1-days", "1-2-days", "2-3-days", "3-4-days", "more-4-days")) 
+df$LOS_x <-arules::discretize(df$LOS_x, method="fixed", breaks=c(0,1,3,4,Inf), 
+                              labels=c("0-1-days", "1-2-days", "3-4-days", "more-4-days")) 
 
 table(df$LOS_x)  
 
@@ -156,13 +156,13 @@ df$LOS_y <- df$LOS_y /24 # Passem de hores a dies.
 #df$LOS_y <- df$LOS_y / (24 * 7) # Passem de hores a setmanes.
 summary(df$LOS_y)
 
-length(which(df$LOS_y<3))
-length(which(df$LOS_y<5 & df$LOS_y>=3))
+length(which(df$LOS_y<4))
+length(which(df$LOS_y<7 & df$LOS_y>=4))
 length(which(df$LOS_y<7 & df$LOS_y>=5))
 length(which(df$LOS_y<14 & df$LOS_y>=7))
 length(which(df$LOS_y>=14))
 
-df$LOS_y <- arules::discretize(df$LOS_y, method="fixed", breaks=c(0,3,5,7,14,Inf), labels=c("0-3-days", "3-5-days", "5-7-days", "7-14-days", "more-2-weeks"))
+df$LOS_y <- arules::discretize(df$LOS_y, method="fixed", breaks=c(0,4,7,14,Inf), labels=c("0-3-days", "4-7-days", "1-2-week", "more-2-weeks"))
 table(df$LOS_y)
 
 # DISCHARGE_LOCATION
@@ -273,6 +273,7 @@ for(fold in 1:numfolds){
     
     # Generem la matriu de confusió
     categories_to_predict = unique(validation.set[[outname]])
+    print(categories_to_predict)
     
     # Inicialitzem a 0s la matriu perquè no es prediuen totes les labels en totes les variables.
     confusion.matrix <- matrix(0, nrow = length(categories_to_predict), ncol = length(categories_to_predict),
@@ -351,7 +352,18 @@ for(output in 1:length(outputs)){
                                                            validation.set[i,], predictors=inputs, type='class')$pred[[1]]}
     }
     
-    confusion.matrix <- table(validation.set[[outname]], xarxa2.predictions[[fold]][[output]])
+    # Generem la matriu de confusió
+    categories_to_predict = unique(validation.set[[outname]])
+    
+    # Inicialitzem a 0s la matriu perquè no es prediuen totes les labels en totes les variables.
+    confusion.matrix <- matrix(0, nrow = length(categories_to_predict), ncol = length(categories_to_predict),
+                               dimnames = list(categories_to_predict, categories_to_predict))
+    
+    taula <- table(validation.set[[outname]], xarxa2.predictions[[fold]][[output]])
+    confusion.matrix[rownames(taula), colnames(taula)]<- taula
+    #print(confusion.matrix)
+    
+    # Guardem la matriu de confusió de cada output
     confusion.matrix.model2.lists[[fold]][[output]] <- confusion.matrix
   }
 } 
