@@ -140,7 +140,7 @@ length(which(df$LOS_x<1))
 length(which(df$LOS_x<=2 & df$LOS_x>=1))
 length(which(df$LOS_x<=4 & df$LOS_x>2))
 #length(which(df$LOS_x<4 & df$LOS_x>=3))
-length(which(df$LOS_x>=4))
+length(which(df$LOS_x>4))
 
 
 df$LOS_x <-arules::discretize(df$LOS_x, method="fixed", breaks=c(0,1,3,4,Inf), 
@@ -273,13 +273,17 @@ for(fold in 1:numfolds){
     
     # Generem la matriu de confusió
     categories_to_predict = unique(validation.set[[outname]])
-    print(categories_to_predict)
+    #print(categories_to_predict)
+    categories_to_predict = sort(categories_to_predict)
+    #print(categories_to_predict)
     
     # Inicialitzem a 0s la matriu perquè no es prediuen totes les labels en totes les variables.
     confusion.matrix <- matrix(0, nrow = length(categories_to_predict), ncol = length(categories_to_predict),
                                dimnames = list(categories_to_predict, categories_to_predict))
+    #print(confusion.matrix)
     
-    taula <- table(validation.set[[outname]], xarxa1.predictions[[fold]][[output]])
+    taula <- table(validation.set[[outname]], xarxa1.predictions[[fold]][[output]], dnn=list(categories_to_predict, categories_to_predict))
+    #print(taula)
     confusion.matrix[rownames(taula), colnames(taula)]<- taula
     #print(confusion.matrix)
     
@@ -354,12 +358,13 @@ for(output in 1:length(outputs)){
     
     # Generem la matriu de confusió
     categories_to_predict = unique(validation.set[[outname]])
+    categories_to_predict = sort(categories_to_predict)
     
     # Inicialitzem a 0s la matriu perquè no es prediuen totes les labels en totes les variables.
     confusion.matrix <- matrix(0, nrow = length(categories_to_predict), ncol = length(categories_to_predict),
                                dimnames = list(categories_to_predict, categories_to_predict))
     
-    taula <- table(validation.set[[outname]], xarxa2.predictions[[fold]][[output]])
+    taula <- table(validation.set[[outname]], xarxa2.predictions[[fold]][[output]], dnn=list(categories_to_predict, categories_to_predict))
     confusion.matrix[rownames(taula), colnames(taula)]<- taula
     #print(confusion.matrix)
     
@@ -386,4 +391,138 @@ print(confusion.matrix.model2.lists[[1]])   # fold 1
 
 #############  I DESPRES COMPARAR LES DUES MOSTRES DE MIDA 10 (INDEPENDENTS) PER A CADA METRICA DE CADA
 #############. VARIABLE OUTPUT
+print(confusion.matrix.model1.lists[[1]])
+print(confusion.matrix.model2.lists[[1]])
+
+get_metric_matrix <- function(conf_matrix_lst, metric_func, idx_lst){
+  numfolds = length(conf_matrix_lst)
+  metric.matrix <- matrix(0, nrow =numfolds, ncol=length(idx_lst),
+                          dimnames=list(c(1:numfolds), idx_lst))
+  for (fold in 1:numfolds){
+    for (i in idx_lst){
+      metric.matrix[fold, toString(i)] <- metric_func(conf_matrix_lst[[fold]][[i]])
+    }
+  }
+  
+  return(metric.matrix)
+}
+
+##### ACCURACY PER X1,X2,X5 i X6
+get_accuracy <- function(conf_matrix){
+  encerts <- sum(diag(conf_matrix))
+  total <- sum(conf_matrix)
+  
+  acc_value <- encerts/total
+  return(acc_value)
+}
+
+accuracies_model1 <- get_metric_matrix(confusion.matrix.model1.lists, get_accuracy, c(1,2,5,6))
+accuracies_model2 <- get_metric_matrix(confusion.matrix.model2.lists, get_accuracy, c(1,2,5,6))
+
+##### F-SCORE
+
+get_fscore <- function(conf_matrix){
+  tp <- conf_matrix[2,2]
+  fp <- conf_matrix[1,2]
+  fn <- conf_matrix[2,1]
+  
+  fscore_value <- 2*tp/(2*tp+fp+fn)
+  return(fscore_value)
+}
+
+fscores_model1 <- get_metric_matrix(confusion.matrix.model1.lists, get_fscore, c(1,6))
+fscores_model2 <- get_metric_matrix(confusion.matrix.model2.lists, get_fscore, c(1,6))
+
+##### MCC
+
+get_mcc <- function(conf_matrix){
+  tp <- conf_matrix[2,2]
+  tn <- conf_matrix[1,1]
+  fp <- conf_matrix[1,2]
+  fn <- conf_matrix[2,1]
+  
+  mcc_value <- (tp*tn - fp*fn)/sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn))
+  return(mcc_value)
+}
+
+mccs_model1 <- get_metric_matrix(confusion.matrix.model1.lists, get_mcc, c(1,6))
+mccs_model2 <- get_metric_matrix(confusion.matrix.model2.lists, get_mcc, c(1,6))
+
+#### MAE
+
+get_mae <- function(conf_matrix){
+  total <- sum(conf_matrix)
+  matrix_dim <- dim(conf_matrix)
+  suma <- 0
+  for(i in 1:matrix_dim[1]){
+    for (j in 1:matrix_dim[2]){
+      suma <- suma + conf_matrix[i,j]*abs(i-j)
+    }
+  }
+  
+  mae_value <- suma/total
+  return(mae_value)
+}
+
+maes_model1 <- get_metric_matrix(confusion.matrix.model1.lists, get_mae, c(3,4))
+maes_model2 <- get_metric_matrix(confusion.matrix.model2.lists, get_mae, c(3,4))
+
+
+#### Tests
+
+compare_metrics <- function(metric_mtrx1, metric_mtrx2){
+  numcols = dim(metric_mtrx1)[2]
+  result_values <- vector()
+  
+  for (col in 1:numcols){
+    metric1 <- metric_mtrx1[,col]
+    metric2 <- metric_mtrx2[,col]
+    
+    shapiro_pval_metric1 <- shapiro.test(metric1)$p.value
+    shapiro_pval_metric2 <- shapiro.test(metric2)$p.value
+    if (shapiro_pval_metric1>=0.05 && shapiro_pval_metric2<0.05 ||
+        shapiro_pval_metric1<0.05 && shapiro_pval_metric2>=0.05){
+      result_values[col] <- "-"
+      next
+    }
+    
+    if (shapiro_pval_metric1>=0.05 && shapiro_pval_metric2>=0.05){
+      mu1 <- mean(metric1)
+      mu2 <- mean(metric2)
+      test <- t.test
+    }
+    else{
+      mu1 <- median(metric1)
+      mu2 <- median(metric2)
+      test <- wilcox.test
+    }
+    
+    if (mu1 > mu2){
+      alternative = "greater"
+    }else{
+      alternative = "less"
+    }
+    pval <- test(metric1, metric2, alternative=alternative)$p.value
+    if (pval < 0.05){
+      
+      if(alternative == "greater"){
+        result_values[col] <- "M1 > M2"
+      } else {
+        result_values[col] <- "M1 < M2"
+      }
+    } else {
+      result_values[col] <- "M1 = M2"
+    }
+  }
+  return(result_values)
+}
+
+accuracies_comparison <- compare_metrics(accuracies_model1, accuracies_model2)
+print(accuracies_comparison)
+fscores_comparison <- compare_metrics(fscores_model1, fscores_model2)
+print(fscores_comparison)
+mcc_comparison <- compare_metrics(mccs_model1, mccs_model2)
+print(mcc_comparison)
+mae_comparison <- compare_metrics(maes_model1, maes_model2)
+print(mae_comparison)
 
