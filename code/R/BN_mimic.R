@@ -220,7 +220,9 @@ xarxa1.finals <- bn.cv(df[,all], "hc",
 ###. NO POT SER LA FIXADA A xarxa1. EN CANVI, LI DIEM EL METODE PER APRENDRE: hc
 xarxa1.finals[[1]]   # es una llista. La xarxa (objecte bn.fit) es a $fitted
 library(Rgraphviz)
-plot.xarxa1.1<-graphviz.plot(xarxa1.finals[[1]]$fitted)  # en principi, cada xarxa pot tenir
+plot.xarxa1.1<-graphviz.plot(xarxa1.finals[[1]]$fitted, 
+                             highlight = list(nodes=outputs, col='tomato', fill='orange'),
+                             fontsize = 14)  # en principi, cada xarxa pot tenir
 # un DAG diferent. 
 plot.xarxa1.1
 
@@ -251,7 +253,7 @@ for(fold in 1:numfolds){
   xarxa1.predictions[[fold]]<-list() # idem per a les prediccions
   validation.set <- df[xarxa1.finals[[fold]]$test,all] # Agafem el set de validació utilitzat en aquest fold concret
                                                        # he tret les dues variables que, de moment, no fem servir posant "all"
-  
+  modelfit <- as.grain(xarxa1.finals[[fold]]$fitted)
   for(output in 1:length(outputs)){
 
     xarxa1.predictions[[fold]][[output]]<-vector()
@@ -260,14 +262,14 @@ for(fold in 1:numfolds){
     # Fem la predicció amb els valors del bn.fit i el validation.set
     # S'ha de fer cas a cas, perque pot ser que algun cas no pugui predir
     # aixo si, ara triga mes, es clar... paciencia!!
-    for (i in 1:dim(validation.set)[1]) {   
-      if (is.null(predict(as.grain(xarxa1.finals[[fold]]$fitted), response=outname, 
-                validation.set[i,], predictors=inputs, type='class')$pred[[1]])==TRUE)
+    for (i in 1:dim(validation.set)[1]) {
+      results.prediction <- predict(modelfit, response=outname, 
+              validation.set[i,], predictors=inputs, type='class')$pred[[1]]
+      if (is.null(results.prediction)==TRUE)
         {
         xarxa1.predictions[[fold]][[output]][i]<-NA
       } else {
-          xarxa1.predictions[[fold]][[output]][i]<-predict(as.grain(xarxa1.finals[[1]]$fitted), response=outname, 
-                                                           validation.set[i,], predictors=inputs, type='class')$pred[[1]]
+          xarxa1.predictions[[fold]][[output]][i]<- results.prediction
         }
     }
     
@@ -320,6 +322,7 @@ table(xarxa1.predictions[[1]][[5]],xarxa1.predictions[[1]][[6]])
 ## has de repetir el segunt per a cada output per separat: 
 
 df2_blacklist<-list()
+df2_whitelist<-list()
 xarxa2.finals<-list()
 xarxa2.predictions<-list()
 confusion.matrix.model2.lists<-list()
@@ -335,9 +338,11 @@ for(output in 1:length(outputs)){
   outname <- outputs[[output]]
   df2_blacklist[[output]] <- data.frame("from" = inputs,
                                         "to" = rep(outname, time=length(inputs)))
+  df2_whitelist[[output]] <- data.frame("from" = rep(outname, time=length(inputs)),
+                              "to" = inputs)
   
   xarxa2.finals[[output]] <- bn.cv(df[,c(inputs,outname)], "hc", 
-                                   algorithm.args = list(score="bic",blacklist=df2_blacklist[[output]]),  
+                                   algorithm.args = list(score="bic", whitelist=df2_whitelist[[output]],blacklist=df2_blacklist[[output]]),  
                                    fit.args = list(method = "mle"), k = numfolds)
   
   
@@ -347,13 +352,16 @@ for(output in 1:length(outputs)){
     
     xarxa2.predictions[[fold]][[output]]<-vector()
     
-    for (i in 1:dim(validation.set)[1]) {   
-      if (is.null(
-        predict(as.grain(xarxa2.finals[[output]][[fold]]$fitted), response=outname, 
-                validation.set[i,], predictors=inputs, type='class')$pred[[1]])==TRUE){
-        xarxa2.predictions[[fold]][[output]][i]<-NA} else {
-          xarxa2.predictions[[fold]][[output]][i]<-predict(as.grain(xarxa2.finals[[output]][[fold]]$fitted), response=outname, 
-                                                           validation.set[i,], predictors=inputs, type='class')$pred[[1]]}
+    modelfit <- as.grain(xarxa2.finals[[output]][[fold]]$fitted)
+    for (i in 1:dim(validation.set)[1]) {
+      results.predictions <- predict(modelfit, response=outname, 
+                                     validation.set[i,], predictors=inputs, type='class')$pred[[1]]
+      if (is.null(results.predictions)==TRUE){
+          xarxa2.predictions[[fold]][[output]][i]<-NA
+      } 
+      else {
+          xarxa2.predictions[[fold]][[output]][i]<- results.predictions
+      }
     }
     
     # Generem la matriu de confusió
@@ -371,10 +379,17 @@ for(output in 1:length(outputs)){
     # Guardem la matriu de confusió de cada output
     confusion.matrix.model2.lists[[fold]][[output]] <- confusion.matrix
   }
-} 
+}
+
 
 # Output variables - "respiratory_services", "current_careunit", "LOS_x", "LOS_y", "discharge_location", "is_dead_hosp"
 print(confusion.matrix.model2.lists[[1]])   # fold 1
+
+plot.xarxa2.1<-graphviz.plot(xarxa2.finals[[6]][[1]]$fitted, 
+                             highlight = list(nodes=outputs[[6]], col='tomato', fill='orange'),
+                             fontsize = 14)  # en principi, cada xarxa pot tenir
+# un DAG diferent. 
+plot.xarxa2.1
 
 
 #############.  ROSARIO: QUAN TINGUIS LES 10 MATRIUS DE CONFUSIO PER A CADASCUNA DE LES 6 VARIABLES OUTPUT
@@ -409,6 +424,7 @@ get_metric_matrix <- function(conf_matrix_lst, metric_func, idx_lst){
 
 ##### ACCURACY PER X1,X2,X5 i X6
 get_accuracy <- function(conf_matrix){
+  print(conf_matrix)
   encerts <- sum(diag(conf_matrix))
   total <- sum(conf_matrix)
   
@@ -472,21 +488,23 @@ maes_model2 <- get_metric_matrix(confusion.matrix.model2.lists, get_mae, c(3,4))
 
 compare_metrics <- function(metric_mtrx1, metric_mtrx2){
   numcols = dim(metric_mtrx1)[2]
-  result_values <- vector()
+  result_values <- list()
   
   for (col in 1:numcols){
     metric1 <- metric_mtrx1[,col]
     metric2 <- metric_mtrx2[,col]
+    resta1_2 <- metric1-metric2
     
-    shapiro_pval_metric1 <- shapiro.test(metric1)$p.value
-    shapiro_pval_metric2 <- shapiro.test(metric2)$p.value
-    if (shapiro_pval_metric1>=0.05 && shapiro_pval_metric2<0.05 ||
-        shapiro_pval_metric1<0.05 && shapiro_pval_metric2>=0.05){
-      result_values[col] <- "-"
-      next
-    }
+    print(shapiro.test(resta1_2))
+    shapiro_pval_metric <- shapiro.test(resta1_2)$p.value
+    #shapiro_pval_metric2 <- shapiro.test(resta1-2)$p.value
+    #if (shapiro_pval_metric1>=0.05 && shapiro_pval_metric2<0.05 ||
+    #    shapiro_pval_metric1<0.05 && shapiro_pval_metric2>=0.05){
+    #  result_values[col] <- "-"
+    #  next
+    #}
     
-    if (shapiro_pval_metric1>=0.05 && shapiro_pval_metric2>=0.05){
+    if (shapiro_pval_metric>=0.05){
       mu1 <- mean(metric1)
       mu2 <- mean(metric2)
       test <- t.test
@@ -502,21 +520,60 @@ compare_metrics <- function(metric_mtrx1, metric_mtrx2){
     }else{
       alternative = "less"
     }
-    pval <- test(metric1, metric2, alternative=alternative)$p.value
+    pval <- test(resta1_2, alternative=alternative)$p.value
+    print(test(resta1_2, alternative=alternative))
     if (pval < 0.05){
       
       if(alternative == "greater"){
-        result_values[col] <- "M1 > M2"
+        result_values <- append(result_values,c(mu1, mu2,"M1 > M2"))
       } else {
-        result_values[col] <- "M1 < M2"
+        result_values <-  append(result_values,c(mu1, mu2,"M1 < M2"))
       }
     } else {
-      result_values[col] <- "M1 = M2"
+      result_values <-  append(result_values,c(mu1, mu2,"M1 = M2"))
     }
   }
   return(result_values)
 }
 
+
+compare_metrics <- function(metric_mtrx1, metric_mtrx2){
+  numcols = dim(metric_mtrx1)[2]
+  result_values <- c()
+  
+  for (col in 1:numcols){
+    varname <- colnames(metric_mtrx1)[col]
+    metric1 <- metric_mtrx1[,col]
+    metric2 <- metric_mtrx2[,col]
+    resta1_2 <- metric1-metric2
+    
+    shapiro_pval <- shapiro.test(resta1_2)$p.value
+    is_norm <- if(shapiro_pval>=0.05) "Sí" else "No"
+    
+    if (shapiro_pval>=0.05){
+      mu1 <- mean(metric1)
+      mu2 <- mean(metric2)
+      test <- t.test
+    }
+    else{
+      mu1 <- median(metric1)
+      mu2 <- median(metric2)
+      test <- wilcox.test
+    }
+    
+    alternative <- if(mu1 > mu2) "greater" else "less"
+    test_result <- test(resta1_2, alternative=alternative)
+    pval <- test_result$p.value
+    winner <- if(pval >=0.05) "M1 = M2" else if(alternative == "greater") "M1 > M2" else "M1 < M2"
+    conf_int <- test_result$conf.int
+    
+    col_result_values <- list(varname, shapiro_pval, is_norm, mu1, mu2, pval, conf_int, winner)
+    col_result_values_str = paste(col_result_values, collapse = " ")
+    result_values <-append(result_values, col_result_values_str)
+  }
+  
+  return(result_values)
+}
 accuracies_comparison <- compare_metrics(accuracies_model1, accuracies_model2)
 print(accuracies_comparison)
 fscores_comparison <- compare_metrics(fscores_model1, fscores_model2)
@@ -525,4 +582,69 @@ mcc_comparison <- compare_metrics(mccs_model1, mccs_model2)
 print(mcc_comparison)
 mae_comparison <- compare_metrics(maes_model1, maes_model2)
 print(mae_comparison)
+
+
+# print("Learning the structure of the network")
+## AQUESTA XARXA EN REALITAT NO L'HAS DE FER SERVIR FINS QUE VALIDIS!!!
+# xarxa1 <- hc(df[,all],score="bic", blacklist = df1_blacklist) # poso df[,all]
+
+train_BN <- function(dtframe, whitelst=NULL, blacklst=NULL){
+  
+  xarxa <- hc(dtframe, score="bic", whitelist=whitelst, blacklist=blacklst)
+  xarxafit <- bn.fit(xarxa,dtframe,method="mle")
+  #xarxafinal <- as.grain(xarxafit)
+  
+  return(xarxafit)
+}
+
+xarxaMBC <- train_BN(df[,all], blacklst = df1_blacklist)
+xarxaBR <- list()
+
+for (output in 1:length(outputs)){
+  outname <- outputs[[output]]
+  xarxaBR[[outname]] <- train_BN(df[,c(inputs,outname)], whitelst=df2_whitelist[[output]], blacklst=df2_blacklist[[output]])
+}
+
+predict_patient <- function(model1, model2, patient, datainputs){
+  model1.predictions <- predict(model1, response=c("LOS_x", "LOS_y"), 
+                                patient, predictors=datainputs, type="dist")
+  model2.predictions1 <- predict(as.grain(model2[[1]]), response="respiratory_services", 
+                                patient, predictors=datainputs, type="dist")
+  model2.predictions2 <- predict(as.grain(model2[[2]]), response="current_careunit", 
+                                     patient, predictors=datainputs, type="dist")
+  model2.predictions5 <- predict(as.grain(model2[[5]]), response="discharge_location", 
+                                 patient, predictors=datainputs, type="dist")
+  model2.predictions6 <- predict(as.grain(model2[[6]]), response="is_dead", 
+                                    patient, predictors=datainputs, type="dist")
+  return (c(model2.predictions1, model2.predictions2, model1.predictions, model2.predictions5, model2.predictions6))
+
+}
+
+plot.xarxaMBC <-graphviz.plot(xarxaMBC, 
+                             highlight = list(nodes=outputs, col='tomato', fill='orange'),
+                             fontsize = 30)  # en principi, cada xarxa pot tenir
+# un DAG diferent. 
+plot.xarxaMBC
+
+
+pacient <- df[1,inputs]
+for (output in outputs){
+  plot.xarxaBR <-graphviz.plot(xarxaBR[[output]], 
+                                highlight = list(nodes=output, col='tomato', fill='orange'),
+                                fontsize = 15)  # en principi, cada xarxa pot tenir
+  # un DAG diferent. 
+  plot.xarxaBR
+}
+
+pacient <- as.list(pacient)
+pacient$gender <- rbind("M", "M", "M", "M", "M")
+pacient$weight <- rbind("healthy","healthy","obese","obese", "obese")
+pacient$age <- rbind( "young adult", "senior", "young adult", "senior", "senior")
+pacient$admission_type <- rbind("EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY")
+pacient$admit_location <- rbind( "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT")
+pacient$diagnosis <- rbind("D&D of the Circulatory System", "D&D of the Circulatory System", "D&D of the Circulatory System","D&D of the Circulatory System", "Burns")
+pacient$diagnosis_severity <- rbind(3,3,3,3,3)
+pacient$diagnosis_mortality <- rbind(3,3,3,3,3)
+pacients_prova <- data.frame(pacient, stringsAsFactors = TRUE)
+predictionsfinal <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova, inputs)
 
