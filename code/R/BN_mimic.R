@@ -646,5 +646,46 @@ pacient$diagnosis <- rbind("D&D of the Circulatory System", "D&D of the Circulat
 pacient$diagnosis_severity <- rbind(3,3,3,3,3)
 pacient$diagnosis_mortality <- rbind(3,3,3,3,3)
 pacients_prova <- data.frame(pacient, stringsAsFactors = TRUE)
-predictionsfinal <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova, inputs)
+predictionsfinal1 <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova, inputs)
 
+pacient$gender <- rbind("F", "F", "F", "F", "F")
+pacient$weight <- rbind("healthy","healthy","obese","obese", "obese")
+pacient$age <- rbind( "young adult", "senior", "young adult", "senior", "senior")
+pacient$admission_type <- rbind("EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY")
+pacient$admit_location <- rbind( "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT")
+pacient$diagnosis <- rbind("D&D of the Circulatory System", "D&D of the Circulatory System", "D&D of the Circulatory System","D&D of the Circulatory System", "Burns")
+pacient$diagnosis_severity <- rbind(3,3,3,3,3)
+pacient$diagnosis_mortality <- rbind(3,3,3,3,3)
+pacients_prova2 <- data.frame(pacient, stringsAsFactors = TRUE)
+predictionsfinal2 <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova2, inputs)
+
+pacient$gender <- rbind("F", "F", "F", "F",
+                        "M", "M", "M", "M")
+pacient$weight <- rbind("healthy","healthy","healthy","healthy",
+                        "healthy","healthy","healthy","healthy")
+pacient$age <- rbind( "adult", "adult", "adult", "adult",
+                      "adult", "adult", "adult", "adult")
+pacient$admission_type <- rbind("EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY",
+                                "EMERGENCY", "EMERGENCY", "EMERGENCY", "EMERGENCY")
+pacient$admit_location <- rbind( "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT",
+                                 "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT")
+pacient$diagnosis <- rbind("D&D of the Respiratory System", "D&D of the Respiratory System", "D&D of the Respiratory System","D&D of the Respiratory System",
+                           "D&D of the Respiratory System", "D&D of the Respiratory System", "D&D of the Respiratory System","D&D of the Respiratory System")
+pacient$diagnosis_severity <- rbind(1,2,3,4,
+                                    1,2,3,4)
+pacient$diagnosis_mortality <- rbind(1,2,3,4,
+                                     1,2,3,4)
+pacients_prova3 <- data.frame(pacient, stringsAsFactors = TRUE)
+predictionsfinal3 <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova3, inputs)
+
+
+pacient$gender <- rbind("F", "M")
+pacient$weight <- rbind("healthy", "healthy")
+pacient$age <- rbind( "adult", "adult")
+pacient$admission_type <- rbind("EMERGENCY", "EMERGENCY")
+pacient$admit_location <- rbind( "EMERGENCY ROOM ADMIT", "EMERGENCY ROOM ADMIT")
+pacient$diagnosis <- rbind("D&D of the Male Reproductive System", "Pregnancy, Childbirth & the Puerperium")
+pacient$diagnosis_severity <- rbind(2,2)
+pacient$diagnosis_mortality <- rbind(2,2)
+pacients_prova4 <- data.frame(pacient, stringsAsFactors = TRUE)
+predictionsfinal4 <- predict_patient(as.grain(xarxaMBC), xarxaBR, pacients_prova4, inputs)
